@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: campus-week-planner
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: 24.14.1
