@@ -78,6 +78,10 @@ function toMinutes(value) {
   return hours * MINUTES_PER_HOUR + minutes;
 }
 
+function isInputTime(value) {
+  return /^\d{2}:\d{2}$/.test(String(value || ""));
+}
+
 function toScheduleMinutes(value) {
   const minutes = toMinutes(value);
   const afternoonMinutes = minutes + 12 * MINUTES_PER_HOUR;
@@ -292,12 +296,14 @@ function previewSelectedUscSection() {
   const { course, section } = getSelectedUscSection();
   if (!course || !section) return;
 
-  const firstMeeting = section.schedule[0];
+  const firstMeeting = firstTimedMeeting(section);
   const weekdays = firstMeeting.days.map((day) => DAY_ALIASES[day]).filter(Boolean);
   elements.title.value = course.title;
   elements.type.value = sectionType(section.mode);
-  elements.start.value = firstMeeting.startTime;
-  elements.end.value = firstMeeting.endTime;
+  if (isInputTime(firstMeeting.startTime) && isInputTime(firstMeeting.endTime)) {
+    elements.start.value = firstMeeting.startTime;
+    elements.end.value = firstMeeting.endTime;
+  }
   elements.location.value = sectionLocation(section);
   setSelectedDays(weekdays.length ? weekdays : ["Monday"]);
 }
@@ -318,18 +324,10 @@ function addSelectedUscSection() {
   const title = elements.title.value.trim() || course.title;
   const type = elements.type.value;
   const location = elements.location.value.trim() || sectionLocation(section);
-  const meetings = section.schedule
-    .flatMap((meeting) =>
-      meeting.days.map((day) => ({
-        day: DAY_ALIASES[day],
-        start: toMinutes(meeting.startTime),
-        end: toMinutes(meeting.endTime),
-      })),
-    )
-    .filter((meeting) => meeting.day && meeting.start >= START_HOUR * MINUTES_PER_HOUR && meeting.end <= END_HOUR * MINUTES_PER_HOUR);
+  const meetings = getSectionMeetings(section);
 
   if (meetings.length === 0) {
-    showFormMessage("This section has no Monday-Friday meeting between 8:00 AM and 10:00 PM.", "danger");
+    showFormMessage("Select at least one weekday and a valid time between 8:00 AM and 10:00 PM.", "danger");
     return;
   }
 
@@ -362,6 +360,42 @@ function addSelectedUscSection() {
   showFormMessage(`Added ${course.code} section ${section.id}.`, "info");
   addStatus(`Added ${course.code} section ${section.id} to the timetable.`);
   scrollToScheduleOnSmallScreens();
+}
+
+function firstTimedMeeting(section) {
+  return section.schedule.find((meeting) => isInputTime(meeting.startTime) && isInputTime(meeting.endTime)) || section.schedule[0];
+}
+
+function getSectionMeetings(section) {
+  const scheduledMeetings = section.schedule
+    .flatMap((meeting) => {
+      if (!isInputTime(meeting.startTime) || !isInputTime(meeting.endTime)) return [];
+      return meeting.days.map((day) => ({
+        day: DAY_ALIASES[day],
+        start: toMinutes(meeting.startTime),
+        end: toMinutes(meeting.endTime),
+      }));
+    })
+    .filter(isValidScheduleMeeting);
+
+  if (scheduledMeetings.length > 0) {
+    return scheduledMeetings;
+  }
+
+  const days = getSelectedDays();
+  const { start, end } = toScheduleRange(elements.start.value, elements.end.value);
+  return days.map((day) => ({ day, start, end })).filter(isValidScheduleMeeting);
+}
+
+function isValidScheduleMeeting(meeting) {
+  return (
+    DAYS.includes(meeting.day) &&
+    Number.isFinite(meeting.start) &&
+    Number.isFinite(meeting.end) &&
+    meeting.end > meeting.start &&
+    meeting.start >= START_HOUR * MINUTES_PER_HOUR &&
+    meeting.end <= END_HOUR * MINUTES_PER_HOUR
+  );
 }
 
 function uscSectionKey(course, section) {
@@ -398,6 +432,7 @@ function sectionLocation(section) {
 }
 
 function formatInputTime(value) {
+  if (!isInputTime(value)) return "TBA";
   return toClock(toMinutes(value));
 }
 
