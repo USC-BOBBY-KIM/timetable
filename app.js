@@ -57,7 +57,7 @@ const elements = {
   savePlan: document.querySelector("#savePlanButton"),
   loadPlan: document.querySelector("#loadPlanButton"),
   loadPlanInput: document.querySelector("#loadPlanInput"),
-  exportPng: document.querySelector("#exportPngButton"),
+  exportJpeg: document.querySelector("#exportJpegButton"),
 };
 
 function loadItems() {
@@ -944,7 +944,7 @@ function getFileDate() {
   return `${year}-${month}-${day}`;
 }
 
-function exportPng() {
+function exportJpeg() {
   const scale = 2;
   const timeWidth = 112;
   const dayWidth = 260;
@@ -964,7 +964,7 @@ function exportPng() {
   context.fillStyle = "#ffffff";
   context.fillRect(0, 0, width, height);
   drawTimetableImage(context, { padding, timeWidth, dayWidth, titleHeight, headerHeight, hourHeight, width, height });
-  downloadCanvasPng(canvas, "campus-week-planner.png");
+  downloadCanvasJpeg(canvas, "campus-week-planner.jpeg");
 }
 
 function drawTimetableImage(context, layout) {
@@ -1147,9 +1147,9 @@ function wrapCanvasText(context, text, x, y, maxWidth, lineHeight, maxLines) {
   });
 }
 
-function downloadCanvasPng(canvas, filename) {
+function downloadCanvasJpeg(canvas, filename) {
   const link = document.createElement("a");
-  link.href = canvas.toDataURL("image/png");
+  link.href = canvas.toDataURL("image/jpeg", 0.92);
   link.download = filename;
   document.body.append(link);
   link.click();
@@ -1218,7 +1218,7 @@ elements.print.addEventListener("click", () => window.print());
 elements.savePlan.addEventListener("click", saveTimetableFile);
 elements.loadPlan.addEventListener("click", chooseTimetableFile);
 elements.loadPlanInput.addEventListener("change", loadTimetableFile);
-elements.exportPng.addEventListener("click", exportPng);
+elements.exportJpeg.addEventListener("click", exportJpeg);
 window.addEventListener("beforeprint", preparePrintLayout);
 window.addEventListener("afterprint", restoreScreenLayout);
 

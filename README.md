@@ -51,7 +51,7 @@ After deployment, code changes go public when they are committed and pushed to t
 - Browser storage
 - Save and load timetable JSON files
 - One-page print layout
-- PNG timetable export
+- JPEG timetable export
 - Responsive layout for desktop and mobile
 
 ## USC Data
