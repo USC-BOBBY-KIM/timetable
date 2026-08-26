@@ -982,27 +982,24 @@ async function exportJpeg(presetName, button) {
     if (button) button.disabled = true;
     await waitForFrame();
 
-    const logo = await loadExportLogo(presetName);
-    const timeRange = getExportTimeRange();
-    const { width, height, padding, timeWidth, titleHeight, headerHeight, footerHeight } = preset;
-    const visibleHours = Math.max(1, timeRange.endHour - timeRange.startHour);
-    const dayWidth = (width - padding * 2 - timeWidth) / DAYS.length;
-    const hourHeight = (height - padding * 2 - titleHeight - headerHeight - footerHeight) / visibleHours;
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const context = canvas.getContext("2d", { alpha: false });
-
-    drawTimetableImage(context, {
-      ...preset,
-      ...timeRange,
-      dayWidth,
-      hourHeight,
-      logo,
+    const response = await fetch("/api/export/jpeg", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        preset: presetName,
+        items: state.items,
+      }),
     });
-    await downloadCanvasJpeg(canvas, preset.filename);
-    canvas.width = 0;
-    canvas.height = 0;
+
+    if (!response.ok) {
+      const message = await response.text();
+      throw new Error(message || "JPEG export failed.");
+    }
+
+    const blob = await response.blob();
+    downloadBlob(blob, preset.filename);
   } catch (error) {
     console.error(error);
     showToast("Could not export the JPEG file.");
