@@ -12,6 +12,35 @@ const STUDY_COLOR = "#afe9a0";
 const PLAN_FILE_VERSION = 1;
 const SCREEN_HOUR_HEIGHT = 72;
 const PRINT_HOUR_HEIGHT = 42;
+const EXPORT_IMAGE_QUALITY = 0.92;
+const EXPORT_LOGOS = {
+  desktop: "assets/usc-wordmark.png",
+  phone: "assets/usc-monogram.png",
+};
+const EXPORT_PRESETS = {
+  desktop: {
+    filename: "campus-week-planner-desktop.jpeg",
+    width: 1920,
+    height: 1080,
+    padding: 48,
+    timeWidth: 92,
+    titleHeight: 84,
+    headerHeight: 58,
+    footerHeight: 28,
+    logoOpacity: 0.16,
+  },
+  phone: {
+    filename: "campus-week-planner-phone.jpeg",
+    width: 1080,
+    height: 1920,
+    padding: 34,
+    timeWidth: 72,
+    titleHeight: 106,
+    headerHeight: 58,
+    footerHeight: 28,
+    logoOpacity: 0.12,
+  },
+};
 const ITEM_TYPES = new Set(["Lecture", "Lab", "Seminar", "Study", "Work", "Personal"]);
 const HEX_COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
 const DAY_ALIASES = {
@@ -57,7 +86,8 @@ const elements = {
   savePlan: document.querySelector("#savePlanButton"),
   loadPlan: document.querySelector("#loadPlanButton"),
   loadPlanInput: document.querySelector("#loadPlanInput"),
-  exportJpeg: document.querySelector("#exportJpegButton"),
+  exportDesktopJpeg: document.querySelector("#exportDesktopJpegButton"),
+  exportPhoneJpeg: document.querySelector("#exportPhoneJpegButton"),
 };
 
 function loadItems() {
@@ -944,27 +974,41 @@ function getFileDate() {
   return `${year}-${month}-${day}`;
 }
 
-function exportJpeg() {
-  const scale = 2;
-  const timeWidth = 112;
-  const dayWidth = 260;
-  const titleHeight = 86;
-  const headerHeight = 74;
-  const hourHeight = 86;
-  const padding = 26;
-  const footerHeight = 30;
-  const width = padding * 2 + timeWidth + dayWidth * DAYS.length;
-  const height = padding * 2 + titleHeight + headerHeight + hourHeight * (END_HOUR - START_HOUR) + footerHeight;
+async function exportJpeg(presetName) {
+  const preset = EXPORT_PRESETS[presetName];
+  const logo = await loadExportLogo(presetName);
+  const { width, height, padding, timeWidth, titleHeight, headerHeight, footerHeight } = preset;
+  const dayWidth = (width - padding * 2 - timeWidth) / DAYS.length;
+  const hourHeight = (height - padding * 2 - titleHeight - headerHeight - footerHeight) / (END_HOUR - START_HOUR);
   const canvas = document.createElement("canvas");
-  canvas.width = width * scale;
-  canvas.height = height * scale;
+  canvas.width = width;
+  canvas.height = height;
   const context = canvas.getContext("2d");
 
-  context.scale(scale, scale);
-  context.fillStyle = "#ffffff";
-  context.fillRect(0, 0, width, height);
-  drawTimetableImage(context, { padding, timeWidth, dayWidth, titleHeight, headerHeight, hourHeight, width, height });
-  downloadCanvasJpeg(canvas, "campus-week-planner.jpeg");
+  drawTimetableImage(context, {
+    ...preset,
+    dayWidth,
+    hourHeight,
+    logo,
+  });
+  downloadCanvasJpeg(canvas, preset.filename);
+}
+
+const exportLogoCache = new Map();
+
+function loadExportLogo(presetName) {
+  const src = EXPORT_LOGOS[presetName];
+  if (!src) return Promise.resolve(null);
+  if (exportLogoCache.has(src)) return exportLogoCache.get(src);
+
+  const promise = new Promise((resolve) => {
+    const image = new Image();
+    image.addEventListener("load", () => resolve(image), { once: true });
+    image.addEventListener("error", () => resolve(null), { once: true });
+    image.src = src;
+  });
+  exportLogoCache.set(src, promise);
+  return promise;
 }
 
 function drawTimetableImage(context, layout) {
@@ -975,8 +1019,11 @@ function drawTimetableImage(context, layout) {
   const gridBottom = gridTop + hourHeight * (END_HOUR - START_HOUR);
   const conflicts = findConflicts(state.items);
 
+  drawExportBackdrop(context, layout);
   drawExportHeader(context, layout, conflicts);
 
+  context.fillStyle = "rgba(255, 255, 255, 0.74)";
+  context.fillRect(padding, headerTop, width - padding * 2, gridBottom - headerTop);
   context.strokeStyle = "#d7d8d2";
   context.lineWidth = 1;
   context.strokeRect(padding, headerTop, width - padding * 2, gridBottom - headerTop);
@@ -985,7 +1032,7 @@ function drawTimetableImage(context, layout) {
 
   DAYS.forEach((day, index) => {
     const x = gridLeft + dayWidth * index;
-    context.fillStyle = "#ffffff";
+    context.fillStyle = "rgba(255, 255, 255, 0.82)";
     context.fillRect(x, headerTop, dayWidth, headerHeight);
     context.fillStyle = "#394348";
     context.font = "900 18px Inter, Arial, sans-serif";
@@ -1030,8 +1077,44 @@ function drawTimetableImage(context, layout) {
   context.fillText("Created with Campus Week Planner", padding, height - 12);
 }
 
+function drawExportBackdrop(context, layout) {
+  const { width, height, logo, logoOpacity } = layout;
+  context.fillStyle = "#f6f3ee";
+  context.fillRect(0, 0, width, height);
+
+  context.strokeStyle = "rgba(35, 99, 105, 0.06)";
+  context.lineWidth = 1;
+  for (let x = 0; x < width; x += 34) {
+    context.beginPath();
+    context.moveTo(x, 0);
+    context.lineTo(x, height);
+    context.stroke();
+  }
+  for (let y = 0; y < height; y += 34) {
+    context.beginPath();
+    context.moveTo(0, y);
+    context.lineTo(width, y);
+    context.stroke();
+  }
+
+  if (!logo) return;
+
+  const maxLogoWidth = width * 0.72;
+  const maxLogoHeight = height * 0.58;
+  const scale = Math.min(maxLogoWidth / logo.naturalWidth, maxLogoHeight / logo.naturalHeight);
+  const logoWidth = logo.naturalWidth * scale;
+  const logoHeight = logo.naturalHeight * scale;
+  const x = (width - logoWidth) / 2;
+  const y = (height - logoHeight) / 2;
+
+  context.save();
+  context.globalAlpha = logoOpacity;
+  context.drawImage(logo, x, y, logoWidth, logoHeight);
+  context.restore();
+}
+
 function drawUscLogoCell(context, x, y, width, height) {
-  context.fillStyle = "#f8faf9";
+  context.fillStyle = "rgba(248, 250, 249, 0.86)";
   context.fillRect(x, y, width, height);
   context.fillStyle = "#990000";
   context.font = "900 34px Georgia, 'Times New Roman', serif";
@@ -1048,9 +1131,9 @@ function drawExportHeader(context, layout, conflicts) {
   const studyCount = state.items.filter((item) => item.type === "Study").length;
   const summary = `${itemCount} item${itemCount === 1 ? "" : "s"} · ${studyCount} study · ${conflicts.size} conflict${conflicts.size === 1 ? "" : "s"}`;
 
-  context.fillStyle = "#f7fbfa";
+  context.fillStyle = "rgba(247, 251, 250, 0.82)";
   context.fillRect(padding, padding, width - padding * 2, titleHeight - 12);
-  context.fillStyle = "#e8f3f1";
+  context.fillStyle = "rgba(232, 243, 241, 0.82)";
   context.fillRect(padding, padding, 118, titleHeight - 12);
 
   drawRoundedRect(context, padding + 19, padding + 17, 78, 30, 15, "#ffffff");
@@ -1148,12 +1231,14 @@ function wrapCanvasText(context, text, x, y, maxWidth, lineHeight, maxLines) {
 }
 
 function downloadCanvasJpeg(canvas, filename) {
-  const link = document.createElement("a");
-  link.href = canvas.toDataURL("image/jpeg", 0.92);
-  link.download = filename;
-  document.body.append(link);
-  link.click();
-  link.remove();
+  canvas.toBlob((blob) => {
+    if (!blob) {
+      showToast("Could not create the JPEG file.");
+      return;
+    }
+
+    downloadBlob(blob, filename);
+  }, "image/jpeg", EXPORT_IMAGE_QUALITY);
 }
 
 function downloadBlob(blob, filename) {
@@ -1218,7 +1303,8 @@ elements.print.addEventListener("click", () => window.print());
 elements.savePlan.addEventListener("click", saveTimetableFile);
 elements.loadPlan.addEventListener("click", chooseTimetableFile);
 elements.loadPlanInput.addEventListener("change", loadTimetableFile);
-elements.exportJpeg.addEventListener("click", exportJpeg);
+elements.exportDesktopJpeg.addEventListener("click", () => exportJpeg("desktop"));
+elements.exportPhoneJpeg.addEventListener("click", () => exportJpeg("phone"));
 window.addEventListener("beforeprint", preparePrintLayout);
 window.addEventListener("afterprint", restoreScreenLayout);
 
