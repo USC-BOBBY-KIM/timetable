@@ -12,7 +12,7 @@ const STUDY_COLOR = "#afe9a0";
 const PLAN_FILE_VERSION = 1;
 const SCREEN_HOUR_HEIGHT = 72;
 const PRINT_HOUR_HEIGHT = 42;
-const EXPORT_IMAGE_QUALITY = 0.92;
+const EXPORT_IMAGE_QUALITY = 0.86;
 const EXPORT_LOGOS = {
   desktop: "assets/usc-wordmark.png",
   phone: "assets/usc-monogram.png",
@@ -20,24 +20,24 @@ const EXPORT_LOGOS = {
 const EXPORT_PRESETS = {
   desktop: {
     filename: "campus-week-planner-desktop.jpeg",
-    width: 1920,
-    height: 1080,
-    padding: 48,
-    timeWidth: 92,
-    titleHeight: 84,
-    headerHeight: 58,
+    width: 1280,
+    height: 720,
+    padding: 34,
+    timeWidth: 78,
+    titleHeight: 70,
+    headerHeight: 48,
     footerHeight: 28,
     logoOpacity: 0.16,
   },
   phone: {
     filename: "campus-week-planner-phone.jpeg",
-    width: 1080,
-    height: 1920,
-    padding: 34,
-    timeWidth: 72,
-    titleHeight: 106,
-    headerHeight: 58,
-    footerHeight: 28,
+    width: 720,
+    height: 1280,
+    padding: 24,
+    timeWidth: 60,
+    titleHeight: 92,
+    headerHeight: 52,
+    footerHeight: 24,
     logoOpacity: 0.12,
   },
 };
@@ -974,24 +974,59 @@ function getFileDate() {
   return `${year}-${month}-${day}`;
 }
 
-async function exportJpeg(presetName) {
+async function exportJpeg(presetName, button) {
   const preset = EXPORT_PRESETS[presetName];
-  const logo = await loadExportLogo(presetName);
-  const { width, height, padding, timeWidth, titleHeight, headerHeight, footerHeight } = preset;
-  const dayWidth = (width - padding * 2 - timeWidth) / DAYS.length;
-  const hourHeight = (height - padding * 2 - titleHeight - headerHeight - footerHeight) / (END_HOUR - START_HOUR);
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  const context = canvas.getContext("2d");
+  if (!preset || button?.disabled) return;
 
-  drawTimetableImage(context, {
-    ...preset,
-    dayWidth,
-    hourHeight,
-    logo,
-  });
-  downloadCanvasJpeg(canvas, preset.filename);
+  try {
+    if (button) button.disabled = true;
+    await waitForFrame();
+
+    const logo = await loadExportLogo(presetName);
+    const timeRange = getExportTimeRange();
+    const { width, height, padding, timeWidth, titleHeight, headerHeight, footerHeight } = preset;
+    const visibleHours = Math.max(1, timeRange.endHour - timeRange.startHour);
+    const dayWidth = (width - padding * 2 - timeWidth) / DAYS.length;
+    const hourHeight = (height - padding * 2 - titleHeight - headerHeight - footerHeight) / visibleHours;
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d", { alpha: false });
+
+    drawTimetableImage(context, {
+      ...preset,
+      ...timeRange,
+      dayWidth,
+      hourHeight,
+      logo,
+    });
+    await downloadCanvasJpeg(canvas, preset.filename);
+    canvas.width = 0;
+    canvas.height = 0;
+  } catch (error) {
+    console.error(error);
+    showToast("Could not export the JPEG file.");
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+function waitForFrame() {
+  return new Promise((resolve) => requestAnimationFrame(resolve));
+}
+
+function getExportTimeRange() {
+  if (!state.items.length) {
+    return { startHour: 9, endHour: 18 };
+  }
+
+  const earliestStart = Math.min(...state.items.map((item) => item.start));
+  const latestEnd = Math.max(...state.items.map((item) => item.end));
+  const startHour = earliestStart < 9 * MINUTES_PER_HOUR ? START_HOUR : 9;
+  const roundedEndHour = Math.ceil(latestEnd / MINUTES_PER_HOUR);
+  const endHour = Math.min(END_HOUR, Math.max(startHour + 1, roundedEndHour));
+
+  return { startHour, endHour };
 }
 
 const exportLogoCache = new Map();
@@ -1012,11 +1047,11 @@ function loadExportLogo(presetName) {
 }
 
 function drawTimetableImage(context, layout) {
-  const { padding, timeWidth, dayWidth, titleHeight, headerHeight, hourHeight, width, height } = layout;
+  const { padding, timeWidth, dayWidth, titleHeight, headerHeight, hourHeight, width, height, startHour, endHour } = layout;
   const gridLeft = padding + timeWidth;
   const headerTop = padding + titleHeight;
   const gridTop = headerTop + headerHeight;
-  const gridBottom = gridTop + hourHeight * (END_HOUR - START_HOUR);
+  const gridBottom = gridTop + hourHeight * (endHour - startHour);
   const conflicts = findConflicts(state.items);
 
   drawExportBackdrop(context, layout);
@@ -1035,23 +1070,23 @@ function drawTimetableImage(context, layout) {
     context.fillStyle = "rgba(255, 255, 255, 0.82)";
     context.fillRect(x, headerTop, dayWidth, headerHeight);
     context.fillStyle = "#394348";
-    context.font = "900 18px Inter, Arial, sans-serif";
+    context.font = "900 16px Inter, Arial, sans-serif";
     context.textAlign = "center";
-    context.fillText(day, x + dayWidth / 2, headerTop + 45);
+    context.fillText(day, x + dayWidth / 2, headerTop + headerHeight / 2 + 6);
     context.textAlign = "left";
   });
 
-  for (let hour = START_HOUR; hour <= END_HOUR; hour += 1) {
-    const y = gridTop + (hour - START_HOUR) * hourHeight;
+  for (let hour = startHour; hour <= endHour; hour += 1) {
+    const y = gridTop + (hour - startHour) * hourHeight;
     context.strokeStyle = "#d7d8d2";
     context.beginPath();
     context.moveTo(padding, y);
     context.lineTo(width - padding, y);
     context.stroke();
 
-    if (hour < END_HOUR) {
+    if (hour < endHour) {
       context.fillStyle = "#687177";
-      context.font = "500 14px Inter, Arial, sans-serif";
+      context.font = "500 12px Inter, Arial, sans-serif";
       context.textAlign = "right";
       context.fillText(toClock(hour * MINUTES_PER_HOUR), padding + timeWidth - 14, y + 22);
       context.textAlign = "left";
@@ -1070,6 +1105,7 @@ function drawTimetableImage(context, layout) {
   state.items
     .slice()
     .sort((a, b) => DAYS.indexOf(a.day) - DAYS.indexOf(b.day) || a.start - b.start)
+    .filter((item) => item.end > startHour * MINUTES_PER_HOUR && item.start < endHour * MINUTES_PER_HOUR)
     .forEach((item) => drawTimetableItem(context, item, conflicts.has(item.id), layout));
 
   context.fillStyle = "#687177";
@@ -1084,13 +1120,13 @@ function drawExportBackdrop(context, layout) {
 
   context.strokeStyle = "rgba(35, 99, 105, 0.06)";
   context.lineWidth = 1;
-  for (let x = 0; x < width; x += 34) {
+  for (let x = 0; x < width; x += 48) {
     context.beginPath();
     context.moveTo(x, 0);
     context.lineTo(x, height);
     context.stroke();
   }
-  for (let y = 0; y < height; y += 34) {
+  for (let y = 0; y < height; y += 48) {
     context.beginPath();
     context.moveTo(0, y);
     context.lineTo(width, y);
@@ -1126,7 +1162,7 @@ function drawUscLogoCell(context, x, y, width, height) {
 }
 
 function drawExportHeader(context, layout, conflicts) {
-  const { padding, width, titleHeight } = layout;
+  const { padding, width, titleHeight, startHour, endHour } = layout;
   const itemCount = state.items.length;
   const studyCount = state.items.filter((item) => item.type === "Study").length;
   const summary = `${itemCount} item${itemCount === 1 ? "" : "s"} · ${studyCount} study · ${conflicts.size} conflict${conflicts.size === 1 ? "" : "s"}`;
@@ -1142,28 +1178,40 @@ function drawExportHeader(context, layout, conflicts) {
   context.fillText("MON-FRI", padding + 30, padding + 37);
 
   context.fillStyle = "#202427";
-  context.font = "900 28px Inter, Arial, sans-serif";
+  context.font = "900 24px Inter, Arial, sans-serif";
   context.fillText("Week Plan", padding + 142, padding + 35);
   context.fillStyle = "#536066";
-  context.font = "600 14px Inter, Arial, sans-serif";
+  context.font = "600 12px Inter, Arial, sans-serif";
   context.fillText(summary, padding + 142, padding + 60);
 
   context.fillStyle = "#687177";
-  context.font = "800 13px Inter, Arial, sans-serif";
+  context.font = "800 12px Inter, Arial, sans-serif";
   context.textAlign = "right";
-  context.fillText("8 AM-10 PM", width - padding - 6, padding + 37);
+  context.fillText(formatExportHourRange(startHour, endHour), width - padding - 6, padding + 37);
   context.textAlign = "left";
 }
 
+function formatExportHourRange(startHour, endHour) {
+  return `${formatExportHour(startHour)}-${formatExportHour(endHour)}`;
+}
+
+function formatExportHour(hour) {
+  return toClock(hour * MINUTES_PER_HOUR).replace(":00", "");
+}
+
 function drawTimetableItem(context, item, hasConflict, layout) {
-  const { padding, timeWidth, dayWidth, titleHeight, headerHeight, hourHeight } = layout;
+  const { padding, timeWidth, dayWidth, titleHeight, headerHeight, hourHeight, startHour, endHour } = layout;
   const dayIndex = DAYS.indexOf(item.day);
   if (dayIndex === -1) return;
 
+  const visibleStart = Math.max(item.start, startHour * MINUTES_PER_HOUR);
+  const visibleEnd = Math.min(item.end, endHour * MINUTES_PER_HOUR);
+  if (visibleEnd <= visibleStart) return;
+
   const x = padding + timeWidth + dayWidth * dayIndex + 10;
-  const y = padding + titleHeight + headerHeight + ((item.start - START_HOUR * MINUTES_PER_HOUR) / MINUTES_PER_HOUR) * hourHeight + 5;
+  const y = padding + titleHeight + headerHeight + ((visibleStart - startHour * MINUTES_PER_HOUR) / MINUTES_PER_HOUR) * hourHeight + 5;
   const width = dayWidth - 20;
-  const height = Math.max(54, ((item.end - item.start) / MINUTES_PER_HOUR) * hourHeight - 10);
+  const height = Math.max(48, ((visibleEnd - visibleStart) / MINUTES_PER_HOUR) * hourHeight - 10);
   const color = item.type === "Study" ? STUDY_COLOR : item.color;
   const { code, name } = splitScheduleTitle(item.title);
 
@@ -1231,14 +1279,17 @@ function wrapCanvasText(context, text, x, y, maxWidth, lineHeight, maxLines) {
 }
 
 function downloadCanvasJpeg(canvas, filename) {
-  canvas.toBlob((blob) => {
-    if (!blob) {
-      showToast("Could not create the JPEG file.");
-      return;
-    }
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error("Could not create the JPEG file."));
+        return;
+      }
 
-    downloadBlob(blob, filename);
-  }, "image/jpeg", EXPORT_IMAGE_QUALITY);
+      downloadBlob(blob, filename);
+      resolve();
+    }, "image/jpeg", EXPORT_IMAGE_QUALITY);
+  });
 }
 
 function downloadBlob(blob, filename) {
@@ -1249,7 +1300,7 @@ function downloadBlob(blob, filename) {
   document.body.append(link);
   link.click();
   link.remove();
-  URL.revokeObjectURL(url);
+  window.setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
 function preparePrintLayout() {
@@ -1303,8 +1354,8 @@ elements.print.addEventListener("click", () => window.print());
 elements.savePlan.addEventListener("click", saveTimetableFile);
 elements.loadPlan.addEventListener("click", chooseTimetableFile);
 elements.loadPlanInput.addEventListener("change", loadTimetableFile);
-elements.exportDesktopJpeg.addEventListener("click", () => exportJpeg("desktop"));
-elements.exportPhoneJpeg.addEventListener("click", () => exportJpeg("phone"));
+elements.exportDesktopJpeg.addEventListener("click", () => exportJpeg("desktop", elements.exportDesktopJpeg));
+elements.exportPhoneJpeg.addEventListener("click", () => exportJpeg("phone", elements.exportPhoneJpeg));
 window.addEventListener("beforeprint", preparePrintLayout);
 window.addEventListener("afterprint", restoreScreenLayout);
 

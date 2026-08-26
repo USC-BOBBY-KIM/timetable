@@ -207,6 +207,11 @@ h1 {
   font-weight: 900;
 }
 
+.export-button:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
 .mini-button {
   width: 28px;
   height: 28px;
