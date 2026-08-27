@@ -7,6 +7,7 @@ const ONLINE_CLIENT_KEY = "campus-week-planner-client-id";
 const USC_PROGRAMS_ENDPOINT = "/api/usc/programs";
 const USC_PROGRAM_ENDPOINT = "/api/usc/program";
 const ONLINE_ENDPOINT = "/api/online";
+const LOCAL_EXPORT_ENDPOINT = "http://localhost:4173/api/export/jpeg";
 const DEFAULT_COLOR = "#ef9da4";
 const STUDY_COLOR = "#afe9a0";
 const PLAN_FILE_VERSION = 1;
@@ -982,7 +983,7 @@ async function exportJpeg(presetName, button) {
     if (button) button.disabled = true;
     await waitForFrame();
 
-    const response = await fetch("/api/export/jpeg", {
+    const response = await fetch(getJpegExportEndpoint(), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1006,6 +1007,10 @@ async function exportJpeg(presetName, button) {
   } finally {
     if (button) button.disabled = false;
   }
+}
+
+function getJpegExportEndpoint() {
+  return window.location.protocol === "file:" ? LOCAL_EXPORT_ENDPOINT : "/api/export/jpeg";
 }
 
 function waitForFrame() {

@@ -45,6 +45,11 @@ const EXPORT_PRESETS = {
   },
 };
 const HEX_COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
 const MIME_TYPES = {
   ".css": "text/css; charset=utf-8",
   ".html": "text/html; charset=utf-8",
@@ -83,6 +88,15 @@ const server = createServer(async (request, response) => {
 
     if (request.method === "GET" && url.pathname === "/api/usc/program") {
       await handleProgramApi(url, response);
+      return;
+    }
+
+    if (request.method === "OPTIONS" && url.pathname === "/api/export/jpeg") {
+      response.writeHead(204, {
+        ...CORS_HEADERS,
+        "Cache-Control": "no-store",
+      });
+      response.end();
       return;
     }
 
@@ -209,6 +223,7 @@ async function handleJpegExportApi(request, response) {
       .toBuffer();
 
     response.writeHead(200, {
+      ...CORS_HEADERS,
       "Content-Type": "image/jpeg",
       "Content-Length": jpeg.length,
       "Content-Disposition": `attachment; filename="${preset.filename}"`,
@@ -641,6 +656,7 @@ async function serveStatic(pathname, request, response) {
 function sendJson(response, status, payload) {
   const body = `${JSON.stringify(payload)}\n`;
   response.writeHead(status, {
+    ...CORS_HEADERS,
     "Content-Type": "application/json; charset=utf-8",
     "Cache-Control": "no-store",
   });
@@ -649,6 +665,7 @@ function sendJson(response, status, payload) {
 
 function sendText(response, status, body) {
   response.writeHead(status, {
+    ...CORS_HEADERS,
     "Content-Type": "text/plain; charset=utf-8",
     "Cache-Control": "no-store",
   });
