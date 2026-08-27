@@ -18,6 +18,7 @@ const MINUTES_PER_HOUR = 60;
 const DEFAULT_COLOR = "#ef9da4";
 const STUDY_COLOR = "#afe9a0";
 const EXPORT_IMAGE_QUALITY = 86;
+const EXPORT_FONT_FAMILY = "Pretendard, Inter, Avenir Next, Helvetica Neue, Arial, sans-serif";
 const EXPORT_PRESETS = {
   desktop: {
     filename: "campus-week-planner-desktop.jpeg",
@@ -33,13 +34,13 @@ const EXPORT_PRESETS = {
   },
   phone: {
     filename: "campus-week-planner-phone.jpeg",
-    width: 720,
-    height: 1280,
-    padding: 24,
-    timeWidth: 60,
-    titleHeight: 92,
-    headerHeight: 52,
-    footerHeight: 24,
+    width: 1170,
+    height: 2532,
+    padding: 56,
+    timeWidth: 116,
+    titleHeight: 150,
+    headerHeight: 92,
+    footerHeight: 52,
     logoOpacity: 0.12,
     logoPath: "assets/usc-monogram.png",
   },
@@ -361,6 +362,7 @@ function renderTimetableSvg(items, preset) {
   const hourHeight = gridHeight / visibleHours;
   const conflicts = findConflicts(items);
   const parts = [];
+  const timeFontSize = Math.min(18, Math.max(12, timeWidth * 0.15));
 
   parts.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`);
   parts.push(renderBackdropGrid(width, height));
@@ -373,15 +375,15 @@ function renderTimetableSvg(items, preset) {
   DAYS.forEach((day, index) => {
     const x = gridLeft + dayWidth * index;
     parts.push(`<rect x="${x}" y="${headerTop}" width="${dayWidth}" height="${headerHeight}" fill="#ffffff" fill-opacity="0.82"/>`);
-    const dayFontSize = Math.min(16, Math.max(13, dayWidth * 0.13));
-    parts.push(`<text x="${x + dayWidth / 2}" y="${headerTop + headerHeight / 2 + dayFontSize * 0.36}" text-anchor="middle" font-family="Arial, sans-serif" font-size="${dayFontSize}" font-weight="900" fill="#394348">${escapeSvgText(day)}</text>`);
+    const dayFontSize = Math.min(24, Math.max(13, dayWidth * 0.12));
+    parts.push(`<text x="${x + dayWidth / 2}" y="${headerTop + headerHeight / 2 + dayFontSize * 0.36}" text-anchor="middle" font-family="${EXPORT_FONT_FAMILY}" font-size="${dayFontSize}" font-weight="900" fill="#394348">${escapeSvgText(day)}</text>`);
   });
 
   for (let hour = timeRange.startHour; hour <= timeRange.endHour; hour += 1) {
     const y = gridTop + (hour - timeRange.startHour) * hourHeight;
     parts.push(`<line x1="${padding}" y1="${y}" x2="${width - padding}" y2="${y}" stroke="#d7d8d2"/>`);
     if (hour < timeRange.endHour) {
-      parts.push(`<text x="${padding + timeWidth - 14}" y="${y + 22}" text-anchor="end" font-family="Arial, sans-serif" font-size="12" font-weight="500" fill="#687177">${escapeSvgText(toClock(hour * MINUTES_PER_HOUR))}</text>`);
+      parts.push(`<text x="${padding + timeWidth / 2}" y="${y + timeFontSize + 10}" text-anchor="middle" font-family="${EXPORT_FONT_FAMILY}" font-size="${timeFontSize}" font-weight="600" fill="#687177">${escapeSvgText(toClock(hour * MINUTES_PER_HOUR))}</text>`);
     }
   }
 
@@ -407,7 +409,7 @@ function renderTimetableSvg(items, preset) {
       }));
     });
 
-  parts.push(`<text x="${padding}" y="${height - 12}" font-family="Arial, sans-serif" font-size="13" font-weight="500" fill="#687177">Created with Campus Week Planner</text>`);
+  parts.push(`<text x="${padding}" y="${height - 12}" font-family="${EXPORT_FONT_FAMILY}" font-size="${Math.max(13, timeFontSize)}" font-weight="500" fill="#687177">Created with Campus Week Planner</text>`);
   parts.push("</svg>");
 
   return parts.join("");
@@ -434,10 +436,10 @@ function renderExportHeader(items, conflicts, preset, timeRange) {
     `<rect x="${padding}" y="${padding}" width="${width - padding * 2}" height="${titleHeight - 12}" fill="#f7fbfa" fill-opacity="0.82"/>`,
     `<rect x="${padding}" y="${padding}" width="118" height="${titleHeight - 12}" fill="#e8f3f1" fill-opacity="0.82"/>`,
     `<rect x="${padding + 19}" y="${padding + 17}" width="78" height="30" rx="15" fill="#ffffff"/>`,
-    `<text x="${padding + 30}" y="${padding + 37}" font-family="Arial, sans-serif" font-size="13" font-weight="900" fill="#236369">MON-FRI</text>`,
-    `<text x="${padding + 142}" y="${padding + 35}" font-family="Arial, sans-serif" font-size="24" font-weight="900" fill="#202427">Week Plan</text>`,
-    `<text x="${padding + 142}" y="${padding + 60}" font-family="Arial, sans-serif" font-size="12" font-weight="600" fill="#536066">${escapeSvgText(summary)}</text>`,
-    `<text x="${width - padding - 6}" y="${padding + 37}" text-anchor="end" font-family="Arial, sans-serif" font-size="12" font-weight="800" fill="#687177">${escapeSvgText(timeLabel)}</text>`,
+    `<text x="${padding + 30}" y="${padding + 37}" font-family="${EXPORT_FONT_FAMILY}" font-size="13" font-weight="900" fill="#236369">MON-FRI</text>`,
+    `<text x="${padding + 142}" y="${padding + 35}" font-family="${EXPORT_FONT_FAMILY}" font-size="24" font-weight="900" fill="#202427">Week Plan</text>`,
+    `<text x="${padding + 142}" y="${padding + 60}" font-family="${EXPORT_FONT_FAMILY}" font-size="12" font-weight="600" fill="#536066">${escapeSvgText(summary)}</text>`,
+    `<text x="${width - padding - 6}" y="${padding + 37}" text-anchor="end" font-family="${EXPORT_FONT_FAMILY}" font-size="12" font-weight="800" fill="#687177">${escapeSvgText(timeLabel)}</text>`,
   ].join("");
 }
 
@@ -468,9 +470,9 @@ function renderTimetableItem(item, hasConflict, layout) {
 
   return [
     `<rect x="${x}" y="${y}" width="${itemWidth}" height="${itemHeight}" rx="10" fill="${color}"/>`,
-    `<text x="${x + 14}" y="${y + codeFontSize + 7}" font-family="Arial, sans-serif" font-size="${codeFontSize}" font-weight="900" fill="${textColor}">${escapeSvgText(codeText)}</text>`,
-    nameLines.map((line, index) => `<text x="${x + 14}" y="${y + codeFontSize + 24 + index * detailLineHeight}" font-family="Arial, sans-serif" font-size="${detailFontSize}" font-weight="700" fill="${mutedColor}" fill-opacity="${mutedOpacity}">${escapeSvgText(line)}</text>`).join(""),
-    `<text x="${x + 14}" y="${y + itemHeight - 14}" font-family="Arial, sans-serif" font-size="${detailFontSize}" font-weight="600" fill="${mutedColor}" fill-opacity="${mutedOpacity}">${escapeSvgText(meta)}</text>`,
+    `<text x="${x + 14}" y="${y + codeFontSize + 7}" font-family="${EXPORT_FONT_FAMILY}" font-size="${codeFontSize}" font-weight="900" fill="${textColor}">${escapeSvgText(codeText)}</text>`,
+    nameLines.map((line, index) => `<text x="${x + 14}" y="${y + codeFontSize + 24 + index * detailLineHeight}" font-family="${EXPORT_FONT_FAMILY}" font-size="${detailFontSize}" font-weight="700" fill="${mutedColor}" fill-opacity="${mutedOpacity}">${escapeSvgText(line)}</text>`).join(""),
+    `<text x="${x + 14}" y="${y + itemHeight - 14}" font-family="${EXPORT_FONT_FAMILY}" font-size="${detailFontSize}" font-weight="600" fill="${mutedColor}" fill-opacity="${mutedOpacity}">${escapeSvgText(meta)}</text>`,
   ].join("");
 }
 
